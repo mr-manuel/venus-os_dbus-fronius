@@ -65,7 +65,7 @@ protected:
 
 	void updateSplitPhase(double power, double energy);
 
-	void setInverterState(int sunSpecState);
+	void setInverterState(int sunSpecState, double acPower, double maxPower);
 
 private:
 	enum ModbusState {

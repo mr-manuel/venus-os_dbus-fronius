@@ -12,6 +12,8 @@ Inverter::Inverter(VeQItem *root, const DeviceInfo &deviceInfo, int deviceInstan
 	mErrorCode(createItem("ErrorCode")),
 	mStatusCode(createItem("StatusCode")),
 	mMaxPower(createItem("Ac/MaxPower")),
+	// This value is written by hub4control and is applied by
+	// dbus-fronius to the PV Inverter
 	mPowerLimit(createItem("Ac/PowerLimit")),
 	mPosition(createItem("Position")),
 	mDeviceInstance(createItem("DeviceInstance")),
@@ -91,6 +93,7 @@ void Inverter::setStatusCode(int code)
 	produceValue(mStatusCode, code, text);
 }
 
+// Not used anymore, could be removed in the future
 void Inverter::invalidateStatusCode()
 {
 	produceValue(mStatusCode, QVariant(), "");

@@ -90,33 +90,53 @@ void SunspecUpdater::startIdleTimer()
 	mTimer->start();
 }
 
-void SunspecUpdater::setInverterState(int sunSpecState)
+void SunspecUpdater::setInverterState(int sunSpecState, double acPower, double maxPower)
 {
 	int froniusState = 0;
 	switch (sunSpecState) {
-	case SunspecOff:
-		froniusState = 0;
-		break;
-	case SunspecSleeping:
-	case SunspecShutdown:
-	case SunspecStandby:
-		froniusState = 8;
-		break;
-	case SunspecStarting:
-		froniusState = 3;
-		break;
-	case SunspecMppt:
-		froniusState = 11;
-		break;
-	case SunspecThrottled:
-		froniusState = 12;
-		break;
-	case SunspecFault:
-		froniusState = 10;
-		break;
-	default:
-		mInverter->invalidateStatusCode();
-		return;
+		case SunspecOff:
+			froniusState = 0;
+			break;
+		case SunspecSleeping:
+		case SunspecShutdown:
+		case SunspecStandby:
+			froniusState = 8;
+			break;
+		case SunspecStarting:
+			froniusState = 3;
+			break;
+		case SunspecMppt:
+			froniusState = 11;
+			break;
+		case SunspecThrottled:
+			froniusState = 12;
+			break;
+		case SunspecFault:
+			froniusState = 10;
+			break;
+		default:
+			// If no state is set, we try to determine the state from the
+			// power, max power and the power limit
+			if (acPower > maxPower * 0.01 && mPowerLimitPct < 1.0) {
+				// If the power is above 1% of the max PV inverter power and the power limit is
+				// not 100%, we assume that the inverter is in MPPT mode and throttled.
+				froniusState = 12;
+			} else if (acPower > maxPower * 0.01) {
+				// If the power is above 1% of the max PV Inverter power, we assume that
+				// the PV inverter is in MPPT mode
+				froniusState = 11;
+			} else if (acPower > 0) {
+				// If the power is above 0 W, we assume that the PV inverter is in starting mode
+				froniusState = 3;
+			} else if (acPower < 0) {
+				// If the power is below 0 W, we assume that the PV inverter is in sleeping mode
+				// since it's consuming power from the grid
+				froniusState = 8;
+			} else {
+				// If the power is 0 W, we assume that the PV inverter is in standby mode
+				// Would the PV Inverter be off, it's very likely that it would not send any data at all
+				froniusState = 8;
+			}
 	}
 	mInverter->setStatusCode(froniusState);
 }
@@ -389,7 +409,7 @@ bool SunspecUpdater::parsePowerAndVoltage(QVector<quint16> values)
 				updateSplitPhase(cid.acPower/2, cid.totalEnergy/2);
 			}
 		}
-		setInverterState(values[48]);
+		setInverterState(values[48], power, deviceInfo.maxPower);
 	} else {
 		if (values.size() != 52)
 			return false;
@@ -425,7 +445,7 @@ bool SunspecUpdater::parsePowerAndVoltage(QVector<quint16> values)
 				updateSplitPhase(cid.acPower/2, cid.totalEnergy/2);
 			}
 		}
-		setInverterState(values[38]);
+		setInverterState(values[38], power, deviceInfo.maxPower);
 	}
 	return true;
 }
@@ -477,6 +497,8 @@ bool Sunspec2018Updater::parsePowerAndVoltage(QVector<quint16> values)
 	if (values.size() != 121)
 		return false;
 
+    const DeviceInfo &deviceInfo = inverter()->deviceInfo();
+
 	CommonInverterData cid;
 	cid.acPower = getScaledValue(values, 10, 1, 116, true);
 	cid.acCurrent = getScaledValue(values, 14, 1, 113, true);
@@ -501,7 +523,7 @@ bool Sunspec2018Updater::parsePowerAndVoltage(QVector<quint16> values)
 	}
 
 	// +1 because 2018 enum is literally off by one from the earlier spec
-	setInverterState(values[4] + 1);
+	setInverterState(values[4] + 1, cid.acPower, deviceInfo.maxPower);
 	return true;
 }
 
